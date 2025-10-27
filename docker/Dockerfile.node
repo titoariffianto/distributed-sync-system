@@ -1,0 +1,22 @@
+# Dockerfile untuk node queue
+FROM python:3.10-slim
+
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Salin source dan env
+COPY ./src ./src
+COPY .env .env
+
+# Jalankan sebagai non-root user
+RUN groupadd -r app \
+    && useradd -r -g app -d /app -s /sbin/nologin app \
+    && chown -R app:app /app
+USER app
+
+CMD ["python", "src/nodes/queue_node.py"]

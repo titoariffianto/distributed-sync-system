@@ -1,0 +1,13 @@
+# --- requirements.txt ---
+fastapi
+uvicorn[standard]
+redis
+python-dotenv
+aiohttp
+
+#benchmark
+locust
+uhashring
+
+#cache LRU
+cachetools

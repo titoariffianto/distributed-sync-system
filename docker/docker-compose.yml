@@ -1,0 +1,125 @@
+version: '3.8'
+
+# Reusable defaults untuk semua node
+x-node-defaults: &node_defaults
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile.node
+  depends_on: [redis]
+  env_file: [../.env]
+  restart: unless-stopped
+  networks: [backend]
+
+services:
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis_db
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+    restart: unless-stopped
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Worker nodes
+  node1:
+    <<: *node_defaults
+    container_name: node-1
+    ports: ["8000:8000"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: node1
+      API_PORT: "8000"
+
+  node2:
+    <<: *node_defaults
+    container_name: node-2
+    ports: ["8001:8001"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: node2
+      API_PORT: "8001"
+
+  node3:
+    <<: *node_defaults
+    container_name: node-3
+    ports: ["8002:8002"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: node3
+      API_PORT: "8002"
+
+  # Distributed Lock Manager (Raft)
+  lock_node1:
+    <<: *node_defaults
+    container_name: lock-node-1
+    ports: ["9000:9000"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: lock_node1
+      API_PORT: "9000"
+      RAFT_NODES: "http://lock_node1:9000,http://lock_node2:9001,http://lock_node3:9002"
+    command: ["python", "src/nodes/lock_manager.py"]
+
+  lock_node2:
+    <<: *node_defaults
+    container_name: lock-node-2
+    ports: ["9001:9001"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: lock_node2
+      API_PORT: "9001"
+      RAFT_NODES: "http://lock_node1:9000,http://lock_node2:9001,http://lock_node3:9002"
+    command: ["python", "src/nodes/lock_manager.py"]
+
+  lock_node3:
+    <<: *node_defaults
+    container_name: lock-node-3
+    ports: ["9002:9002"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: lock_node3
+      API_PORT: "9002"
+      RAFT_NODES: "http://lock_node1:9000,http://lock_node2:9001,http://lock_node3:9002"
+    command: ["python", "src/nodes/lock_manager.py"]
+
+  # Distributed Cache (MESI)
+  cache_node1:
+    <<: *node_defaults
+    container_name: cache-node-1
+    ports: ["7000:7000"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: cache_node1
+      API_PORT: "7000"
+    command: ["python", "src/nodes/cache_node.py"]
+
+  cache_node2:
+    <<: *node_defaults
+    container_name: cache-node-2
+    ports: ["7001:7001"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: cache_node2
+      API_PORT: "7001"
+    command: ["python", "src/nodes/cache_node.py"]
+
+  cache_node3:
+    <<: *node_defaults
+    container_name: cache-node-3
+    ports: ["7002:7002"]
+    environment:
+      REDIS_HOST: redis
+      NODE_ID: cache_node3
+      API_PORT: "7002"
+    command: ["python", "src/nodes/cache_node.py"]
+
+volumes:
+  redis_data:
+
+networks:
+  backend:
